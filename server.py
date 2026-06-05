@@ -7,6 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 # pyrefly: ignore [missing-import]
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
 import logging
 import urllib.parse
 from pathlib import Path
@@ -95,6 +96,37 @@ class TicketCreate(BaseModel):
 
 class FAQRequest(BaseModel):
     message: str
+
+
+# ── Validation helpers ─────────────────────────────────────────────────────────
+
+def validate_email(email: str) -> str | None:
+    """Returns error message if invalid, None if valid."""
+    pattern = r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$'
+    if not email or not re.match(pattern, email.strip()):
+        return "Please provide a valid email address"
+    return None
+
+
+def validate_phone(phone: str) -> str | None:
+    """Returns error message if invalid, None if valid (phone is optional)."""
+    if not phone:
+        return None
+    digits = re.sub(r'\D', '', phone)
+    if len(digits) < 7 or len(digits) > 15:
+        return "Please provide a valid phone number (7-15 digits)"
+    return None
+
+
+def validate_contact(contact: str) -> str | None:
+    """Validates a contact field that could be email or phone."""
+    contact = contact.strip()
+    if not contact:
+        return "Please provide an email or phone number"
+    if '@' in contact:
+        return validate_email(contact)
+    return validate_phone(contact)
+
 
 # Add your routes to the router instead of directly to app
 @api_router.get("/")
@@ -548,6 +580,16 @@ Mfg. Unit      : G-294, G Block, Sector-63, Noida, U.P. – 201301
 
 @api_router.post("/contact")
 async def submit_contact_form(input: ContactCreate):
+    # Validate email
+    email_error = validate_email(input.email)
+    if email_error:
+        return {"success": False, "error": email_error}
+
+    # Validate phone (if provided)
+    phone_error = validate_phone(input.phone)
+    if phone_error:
+        return {"success": False, "error": phone_error}
+
     try:
         logger.info(f"Contact form submission: {input.name} <{input.email}> | Interest: {input.interest}")
         odoo_url = os.environ.get("ODOO_URL", "https://network-regard.odoo.com")
@@ -598,6 +640,11 @@ async def submit_contact_form(input: ContactCreate):
 
 @api_router.post("/leads")
 async def create_lead(input: LeadCreate):
+    # Validate contact (could be email or phone)
+    contact_error = validate_contact(input.contact)
+    if contact_error:
+        return {"success": False, "error": contact_error}
+
     try:
         print(input)
         odoo_url = os.environ.get("ODOO_URL", "https://network-regard.odoo.com")
