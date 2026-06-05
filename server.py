@@ -20,6 +20,8 @@ import httpx
 import xmlrpc.client
 # pyrefly: ignore [missing-import]
 import google.generativeai as genai
+# pyrefly: ignore [missing-import]
+from fastapi.middleware.cors import CORSMiddleware
 
 
 ROOT_DIR = Path(__file__).parent
@@ -34,6 +36,17 @@ logger = logging.getLogger(__name__)
 
 # Create the main app without a prefix
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://regardnetwork.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Request logging middleware
 @app.middleware("http")
@@ -709,14 +722,6 @@ async def get_faq_answer(input: FAQRequest):
 
 # Include the router in the main app
 app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Configure logging
 # (logging is now initialised near the top of this file)
